@@ -3,13 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
-  Clipboard,
-  Check,
   ExternalLink,
   Home as HomeIcon,
   ListFilter,
   MapPin,
   Menu,
+  MessageCircle,
   Phone,
   Plus,
   Search,
@@ -41,6 +40,7 @@ import {
   FACING_OPTIONS,
 } from "@/types";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
+import { phoneHref, whatsappHref } from "@/lib/phone";
 
 type Tab = "listing" | "visit" | "collect" | "calls" | "edit";
 type PropertyFilter =
@@ -627,7 +627,6 @@ function PropertyCard({
   ) => void;
   onEdit: (property: Property) => void;
 }) {
-  const [copied, setCopied] = useState(false);
   const categoryLabel =
     property.property_category === "rental"
       ? "RENTAL"
@@ -706,30 +705,14 @@ function PropertyCard({
           </div>
           <div>
             <span>Contact</span>
-            <strong className="contact">
-              <a
-                href={
-                  property.contact_number
-                    ? `tel:${property.contact_number}`
-                    : undefined
-                }
-              >
-                {property.contact_number || "—"}
-              </a>
-              {property.contact_number && (
-                <button
-                  onClick={() => {
-                    void navigator.clipboard?.writeText(property.contact_number);
-                    setCopied(true);
-                    window.setTimeout(() => setCopied(false), 1800);
-                  }}
-                  aria-label="Copy contact"
-                >
-                  {copied ? <Check size={14} /> : <Clipboard size={14} />}
-                </button>
-              )}
-            </strong>
+            <ContactActions value={property.contact_number} />
           </div>
+          {property.second_contact_number && (
+            <div>
+              <span>Second Contact</span>
+              <ContactActions value={property.second_contact_number} />
+            </div>
+          )}
           {property.property_category === "sale" && (
             <div>
               <span>Area</span>
@@ -801,6 +784,41 @@ function PropertyCard({
     </article>
   );
 }
+
+function ContactActions({ value }: { value: string }) {
+  if (!value.trim()) {
+    return <strong className="contact-empty">—</strong>;
+  }
+
+  return (
+    <div className="contact-actions">
+      <a className="contact-number" href={`tel:${phoneHref(value)}`}>
+        {value}
+      </a>
+      <a
+        className="contact-action call-action"
+        href={`tel:${phoneHref(value)}`}
+        aria-label={`Call ${value}`}
+        title="Call"
+      >
+        <Phone size={14} />
+        <span>Call</span>
+      </a>
+      <a
+        className="contact-action whatsapp-action"
+        href={whatsappHref(value)}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={`WhatsApp ${value}`}
+        title="WhatsApp"
+      >
+        <MessageCircle size={14} />
+        <span>WhatsApp</span>
+      </a>
+    </div>
+  );
+}
+
 function CallList({
   calls,
   onEdit,
@@ -838,8 +856,6 @@ function CallCard({
   onEdit: (call: CallRequest) => void;
   onUpdate: (call: CallRequest) => Promise<void>;
 }) {
-  const [copied, setCopied] = useState(false);
-
   return (
     <article className="property-card call-card" key={call.id}>
           <div className="card-head">
@@ -859,24 +875,7 @@ function CallCard({
             <div className="info-grid">
               <div>
                 <span>Contact</span>
-                <strong className="contact">
-                  <a href={`tel:${call.contact_number}`}>
-                    {call.contact_number || "—"}
-                  </a>
-                  {call.contact_number && (
-                    <button
-                      onClick={() =>
-                        void navigator.clipboard?.writeText(call.contact_number).then(() => {
-                          setCopied(true);
-                          window.setTimeout(() => setCopied(false), 1800);
-                        })
-                      }
-                      aria-label="Copy contact"
-                    >
-                      {copied ? <Check size={14} /> : <Clipboard size={14} />}
-                    </button>
-                  )}
-                </strong>
+                <ContactActions value={call.contact_number} />
               </div>
               <div>
                 <span>Type</span>
@@ -983,6 +982,9 @@ function EditPanel({
                 value={form[key] as string}
                 onChange={(event) => set(key, event.target.value)}
               />
+              {(key === "contact_number" || key === "second_contact_number") && (
+                <ContactActions value={form[key] as string} />
+              )}
             </label>
           ))}
 

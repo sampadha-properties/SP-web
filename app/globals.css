@@ -352,15 +352,46 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.contact a { color: var(--text); text-decoration: none; }
-.contact button {
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--primary);
+.contact-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+  margin-top: 5px;
 }
+.contact-number {
+  flex: 1 1 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font: 14px Arial, sans-serif;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.contact-empty {
+  display: block;
+  color: var(--text);
+  font: 14px Arial, sans-serif;
+}
+.contact-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  font: 700 10px Arial, sans-serif;
+  text-decoration: none;
+  transition: border-color .2s ease, background .2s ease;
+}
+.contact-action:hover { border-color: var(--primary); background: rgba(212, 175, 103, 0.1); }
+.call-action { color: #9dc8ff; }
+.whatsapp-action { color: #75e2ad; }
 
 .price-row {
   display: flex;
