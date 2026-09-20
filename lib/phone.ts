@@ -3,14 +3,10 @@ export function cleanPhoneNumber(value: string): string {
 }
 
 export function phoneHref(value: string): string {
-  let digits = value.replace(/\D/g, "");
-  if (digits.startsWith("00")) {
-    digits = digits.slice(2);
-  }
-  if (digits.startsWith("0") && digits.length === 11) {
-    digits = `91${digits.slice(1)}`;
-  }
-  return `+${digits}`;
+  const cleaned = cleanPhoneNumber(value);
+  return cleaned.startsWith("+")
+    ? `+${cleaned.slice(1).replace(/\D/g, "")}`
+    : cleaned.replace(/\D/g, "");
 }
 
 export function whatsappNumber(value: string): string {
