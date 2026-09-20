@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import {
   Clipboard,
+  Check,
   ExternalLink,
   Home as HomeIcon,
   ListFilter,
@@ -29,8 +31,13 @@ import {
   PropertyFormValues,
   CallRequest,
   PROPERTY_TYPES,
-  FACING_OPTIONS,
+  RENTAL_CATEGORY_OPTIONS,
+  RENTAL_FACING_OPTIONS,
+  RENTAL_PROPERTY_KIND_OPTIONS,
   AreaUnit,
+  RENTAL_LISTING_TYPES,
+  PropertyCategory,
+  PROPERTY_CATEGORIES,
 } from "@/types";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
 
@@ -60,11 +67,14 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [error, setError] = useState("");
   const [editProperty, setEditProperty] = useState<Property | null>(null);
+  const [editCall, setEditCall] = useState<CallRequest | null>(null);
   const [showCallForm, setShowCallForm] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [propertyCategory, setPropertyCategory] = useState("all");
   const [propertyType, setPropertyType] = useState("all");
   const [statusFilter, setStatusFilter] = useState<PropertyFilter>("all");
-  const [maxTotalPrice, setMaxTotalPrice] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
 
   const notify = (message: string) => {
     setToast(message);
@@ -112,9 +122,19 @@ export default function Home() {
     );
     if (tab === "visit") result = result.filter((item) => !item.visited);
     if (tab === "collect")
-      result = result.filter((item) => !item.documents_collected);
-    if (propertyType !== "all")
-      result = result.filter((item) => item.property_type === propertyType);
+      result = result.filter(
+        (item) => item.property_category === "sale" && !item.documents_collected,
+      );
+    if (propertyCategory !== "all")
+      result = result.filter((item) => item.property_category === propertyCategory);
+    if (propertyType !== "all") {
+      const [typeCategory, typeValue] = propertyType.split(":");
+      result = result.filter((item) =>
+        typeCategory === "sale"
+          ? item.property_category === "sale" && item.property_type === typeValue
+          : item.property_category !== "sale" && item.rental_category === typeValue,
+      );
+    }
     if (statusFilter === "sold") result = result.filter((item) => item.sold);
     if (statusFilter === "notSold")
       result = result.filter((item) => !item.sold);
@@ -123,19 +143,25 @@ export default function Home() {
     if (statusFilter === "notVisited")
       result = result.filter((item) => !item.visited);
     if (statusFilter === "collected")
-      result = result.filter((item) => item.documents_collected);
+      result = result.filter((item) => item.property_category === "sale" && item.documents_collected);
     if (statusFilter === "notCollected")
-      result = result.filter((item) => !item.documents_collected);
-    if (maxTotalPrice) {
-      const maximum = Number(maxTotalPrice);
-      if (Number.isFinite(maximum)) {
-        result = result.filter(
-          (item) => item.total_price !== null && item.total_price <= maximum,
-        );
-      }
+      result = result.filter((item) => item.property_category === "sale" && !item.documents_collected);
+    const minimum = minPrice ? Number(minPrice) : null;
+    const maximum = maxPrice ? Number(maxPrice) : null;
+    if (minimum !== null && Number.isFinite(minimum)) {
+      result = result.filter((item) => {
+        const value = item.property_category === "sale" ? item.total_price : item.rent_price;
+        return value !== null && value >= minimum;
+      });
+    }
+    if (maximum !== null && Number.isFinite(maximum)) {
+      result = result.filter((item) => {
+        const value = item.property_category === "sale" ? item.total_price : item.rent_price;
+        return value !== null && value <= maximum;
+      });
     }
     return result;
-  }, [properties, search, tab, propertyType, statusFilter, maxTotalPrice]);
+  }, [properties, search, tab, propertyCategory, propertyType, statusFilter, minPrice, maxPrice]);
   const filteredCalls = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return calls
@@ -188,13 +214,77 @@ export default function Home() {
     }
   };
   const saveProperty = async (form: PropertyFormValues) => {
+    const category = (form.property_category || editProperty?.property_category || "") as PropertyCategory | "";
+    if (!form.owner_name.trim()) {
+      throw new Error("Owner name is required.");
+    }
+    if (!form.contact_number.trim()) {
+      throw new Error("Contact number is required.");
+    }
+    if (!form.location.trim()) {
+      throw new Error("Location is required.");
+    }
+    if (!category) {
+      throw new Error("Select a property category before saving.");
+    }
     if (form.google_maps_url && !/^https?:\/\//i.test(form.google_maps_url))
       throw new Error("Enter a valid Google Maps URL.");
-    if (
-      (form.total_area && Number(form.total_area) < 0) ||
-      (form.price && Number(form.price) < 0)
-    )
-      throw new Error("Area and price cannot be negative.");
+    if (form.contact_number && !/^\+?[0-9\s-]{8,15}$/.test(form.contact_number.trim())) {
+      throw new Error("Contact number is invalid.");
+    }
+    if (form.second_contact_number && !/^\+?[0-9\s-]{8,15}$/.test(form.second_contact_number.trim())) {
+      throw new Error("Second contact number is invalid.");
+    }
+    if (category === "sale") {
+      if (!form.property_type) {
+        throw new Error("Select a sale property type.");
+      }
+      if (!form.dimension.trim()) {
+        throw new Error("Dimension is required for sale properties.");
+      }
+      if (!form.total_area || Number(form.total_area) <= 0) {
+        throw new Error("Total area is required for sale properties.");
+      }
+      if (form.custom_price_enabled) {
+        if (!form.custom_selling_price || Number(form.custom_selling_price) <= 0) {
+          throw new Error("Custom selling price is required.");
+        }
+      } else {
+        if (!form.price || Number(form.price) <= 0) {
+          throw new Error("Price is required for sale properties.");
+        }
+      }
+    }
+
+    if (category === "rental" || category === "lease") {
+      if (!form.rental_type) {
+        throw new Error("Select whether this listing is a rental or a lease.");
+      }
+      if (!form.rental_category) {
+        throw new Error("Select the rental or lease property category.");
+      }
+      if (!form.floor.trim()) {
+        throw new Error("Floor is required for rental or lease properties.");
+      }
+      if (!form.facing) {
+        throw new Error("Facing is required for rental or lease properties.");
+      }
+      if (!form.rent_price || Number(form.rent_price) <= 0) {
+        throw new Error("Rent price is required.");
+      }
+      if (form.rental_category === "home") {
+        if (!form.property_kind) {
+          throw new Error("What kind is required for home properties.");
+        }
+        if (!form.facing) {
+          throw new Error("Facing is required for home properties.");
+        }
+      }
+      if (form.rental_category === "commercial_space" && !form.dimension.trim()) {
+        throw new Error("Dimension is required for commercial space properties.");
+      }
+    }
+
     if (!editProperty) return;
     const updated = await updateProperty(editProperty, form);
     setProperties((items) =>
@@ -209,7 +299,13 @@ export default function Home() {
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark">
-            <HomeIcon size={19} />
+            <Image
+              src="/logo.png"
+              alt="Sampadha logo"
+              className="brand-logo"
+              width={25}
+              height={25}
+            />
           </span>
           <div>
             <strong>Sampadha</strong>
@@ -230,8 +326,8 @@ export default function Home() {
             </p>
           </div>
           <div className="summary-pill">
-            <strong>{properties.length}</strong>
-            <span>properties</span>
+            <strong>{tab === "calls" ? filteredCalls.length : properties.length}</strong>
+            <span>{tab === "calls" ? "call requests" : "properties"}</span>
           </div>
         </section>
         <div className="toolbar">
@@ -277,15 +373,37 @@ export default function Home() {
         {filtersOpen && tab === "listing" && (
           <div className="filter-panel">
             <label>
+              Property category
+              <select
+                value={propertyCategory}
+                onChange={(event) => {
+                  setPropertyCategory(event.target.value);
+                  setPropertyType("all");
+                }}
+              >
+                <option value="all">All categories</option>
+                {PROPERTY_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {category === "sale" ? "Sale" : category === "rental" ? "Rental" : "Lease"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
               Property type
               <select
                 value={propertyType}
                 onChange={(event) => setPropertyType(event.target.value)}
               >
                 <option value="all">All types</option>
-                {PROPERTY_TYPES.map((type) => (
-                  <option key={type}>{type}</option>
-                ))}
+                {(propertyCategory === "sale" || propertyCategory === "all") &&
+                  PROPERTY_TYPES.map((type) => <option key={type} value={`sale:${type}`}>{type}</option>)}
+                {(propertyCategory === "rental" || propertyCategory === "lease" || propertyCategory === "all") && (
+                  <>
+                    <option value="rental:home">Home</option>
+                    <option value="rental:commercial_space">Commercial place</option>
+                  </>
+                )}
               </select>
             </label>
             <label>
@@ -301,28 +419,42 @@ export default function Home() {
                 <option value="notSold">Not sold</option>
                 <option value="visited">Visited</option>
                 <option value="notVisited">Not visited</option>
-                <option value="collected">Documents collected</option>
-                <option value="notCollected">Documents not collected</option>
+                {propertyCategory !== "rental" && propertyCategory !== "lease" && <option value="collected">Documents collected</option>}
+                {propertyCategory !== "rental" && propertyCategory !== "lease" && <option value="notCollected">Documents not collected</option>}
               </select>
             </label>
             <label>
-              Maximum total price
+              Minimum price
               <input
                 className="price-filter-input"
                 type="number"
                 min="0"
                 inputMode="decimal"
-                value={maxTotalPrice}
-                onChange={(event) => setMaxTotalPrice(event.target.value)}
-                placeholder="Example: 5000000"
+                value={minPrice}
+                onChange={(event) => setMinPrice(event.target.value)}
+                placeholder="From"
+              />
+            </label>
+            <label>
+              Maximum price
+              <input
+                className="price-filter-input"
+                type="number"
+                min="0"
+                inputMode="decimal"
+                value={maxPrice}
+                onChange={(event) => setMaxPrice(event.target.value)}
+                placeholder="To"
               />
             </label>
             <button
               className="secondary-button"
               onClick={() => {
+                setPropertyCategory("all");
                 setPropertyType("all");
                 setStatusFilter("all");
-                setMaxTotalPrice("");
+                setMinPrice("");
+                setMaxPrice("");
               }}
             >
               Reset
@@ -340,6 +472,7 @@ export default function Home() {
         ) : tab === "calls" ? (
           <CallList
             calls={filteredCalls}
+            onEdit={(call) => setEditCall(call)}
             onUpdate={async (call) => {
               const updated = await updateCall(call, {
                 status: call.status === "Pending" ? "Completed" : "Pending",
@@ -396,10 +529,36 @@ export default function Home() {
         <CallForm
           onClose={() => setShowCallForm(false)}
           onSave={async (input) => {
+            if (!input.owner_name.trim()) {
+              throw new Error("Owner name is required.");
+            }
+            if (!input.contact_number.trim()) {
+              throw new Error("Contact number is required.");
+            }
+            if (!input.location.trim()) {
+              throw new Error("Location is required.");
+            }
+            if (!input.property_type) {
+              throw new Error("Property type is required.");
+            }
             const call = await createCall(input);
             setCalls((items) => [call, ...items]);
             setShowCallForm(false);
             notify("Call request created.");
+          }}
+        />
+      )}
+      {editCall && (
+        <CallForm
+          initialCall={editCall}
+          onClose={() => setEditCall(null)}
+          onSave={async (input) => {
+            const updated = await updateCall(editCall, input);
+            setCalls((items) =>
+              items.map((item) => (item.id === updated.id ? updated : item)),
+            );
+            setEditCall(null);
+            notify("Call request updated.");
           }}
         />
       )}
@@ -467,11 +626,40 @@ function PropertyCard({
   ) => void;
   onEdit: (property: Property) => void;
 }) {
+  const [copied, setCopied] = useState(false);
+  const categoryLabel =
+    property.property_category === "rental"
+      ? "RENTAL"
+      : property.property_category === "lease"
+        ? "LEASE"
+        : "SALE";
+
+  const priceLabel =
+    property.custom_price_enabled && property.custom_selling_price != null
+      ? "Custom Price"
+      : property.rent_price != null
+        ? "Rent"
+        : property.price
+          ? `Area × Price`
+          : "Price not added";
+
+  const displayPrice =
+    property.custom_price_enabled && property.custom_selling_price != null
+      ? formatCurrency(property.custom_selling_price)
+      : property.rent_price != null
+        ? formatCurrency(property.rent_price)
+        : formatCurrency(property.total_price);
+
   return (
-    <article className="property-card">
+    <article
+      className={`property-card ${property.property_category === "sale" ? "sale-card" : property.property_category === "lease" ? "lease-card" : "rental-card"}`}
+    >
       <div className="card-head">
         <span className="code">{property.property_code}</span>
-        {property.sold && <span className="sold-badge">SOLD</span>}
+        <div className="card-tags">
+          <span className="category-badge">{categoryLabel}</span>
+          {property.sold && <span className="sold-badge">SOLD</span>}
+        </div>
       </div>
       <div className="photo-placeholder">
         <HomeIcon size={26} />
@@ -479,6 +667,7 @@ function PropertyCard({
       </div>
       <div className="card-main">
         <h2>{property.name || property.keyword || "Untitled property"}</h2>
+        {property.keyword && <p className="keyword-line">Keyword: {property.keyword}</p>}
         <p className="location">
           <MapPin size={15} />
           {property.location || "Location not added"}
@@ -500,11 +689,19 @@ function PropertyCard({
           </div>
           <div>
             <span>Type</span>
-            <strong>{property.property_type || "—"}</strong>
+            <strong>
+              {property.property_category === "sale"
+                ? property.property_type || "—"
+                : property.rental_category === "home"
+                  ? "Home"
+                  : property.rental_category === "commercial_space"
+                    ? "Commercial Space"
+                    : property.property_type || "—"}
+            </strong>
           </div>
           <div>
-            <span>Facing</span>
-            <strong>{property.facing || "—"}</strong>
+            <span>Floor</span>
+            <strong>{property.floor || "—"}</strong>
           </div>
           <div>
             <span>Contact</span>
@@ -520,30 +717,62 @@ function PropertyCard({
               </a>
               {property.contact_number && (
                 <button
-                  onClick={() =>
-                    void navigator.clipboard?.writeText(property.contact_number)
-                  }
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(property.contact_number);
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1800);
+                  }}
                   aria-label="Copy contact"
                 >
-                  <Clipboard size={14} />
+                  {copied ? <Check size={14} /> : <Clipboard size={14} />}
                 </button>
               )}
             </strong>
           </div>
+          {property.property_category === "sale" && (
+            <div>
+              <span>Area</span>
+              <strong>
+                {property.total_area != null
+                  ? `${formatNumber(property.total_area)} ${property.area_unit}`
+                  : property.dimension || "—"}
+              </strong>
+            </div>
+          )}
           <div>
-            <span>Area</span>
+            <span>Property Type</span>
             <strong>
-              {formatNumber(property.total_area)} {property.area_unit}
+              {property.property_category === "sale"
+                ? property.property_type || "—"
+                : property.rental_category === "home"
+                  ? "Home"
+                  : property.rental_category === "commercial_space"
+                    ? "Commercial place"
+                    : "—"}
             </strong>
           </div>
+          <div>
+            <span>Facing</span>
+            <strong>{property.facing || "—"}</strong>
+          </div>
+          {property.property_category !== "sale" && (
+            <div>
+              <span>Advance</span>
+              <strong>{property.advance_price != null ? formatCurrency(property.advance_price) : "—"}</strong>
+            </div>
+          )}
+          {property.property_category !== "sale" && property.rental_category === "commercial_space" && (
+            <div>
+              <span>Dimension</span>
+              <strong>{property.dimension || "—"}</strong>
+            </div>
+          )}
         </div>
         <div className="price-row">
           <span>
-            {property.price
-              ? `${formatCurrency(property.price)} / ${property.price_unit}`
-              : "Price not added"}
+            {priceLabel}
           </span>
-          <strong>{formatCurrency(property.total_price)}</strong>
+          <strong>{displayPrice}</strong>
         </div>
         <div className="status-row">
           <button
@@ -553,13 +782,15 @@ function PropertyCard({
             <i />
             {property.visited ? "VISITED" : "NOT VISITED"}
           </button>
-          <button
-            className={`status ${property.documents_collected ? "good" : "bad"}`}
-            onClick={() => onToggle(property, "documents_collected")}
-          >
-            <i />
-            {property.documents_collected ? "COLLECTED" : "NOT COLLECTED"}
-          </button>
+          {property.property_category === "sale" && (
+            <button
+              className={`status ${property.documents_collected ? "good" : "bad"}`}
+              onClick={() => onToggle(property, "documents_collected")}
+            >
+              <i />
+              {property.documents_collected ? "COLLECTED" : "NOT COLLECTED"}
+            </button>
+          )}
         </div>
         <p className="created">Created {formatDate(property.created_at)}</p>
         <button className="edit-button" onClick={() => onEdit(property)}>
@@ -571,9 +802,11 @@ function PropertyCard({
 }
 function CallList({
   calls,
+  onEdit,
   onUpdate,
 }: {
   calls: CallRequest[];
+  onEdit: (call: CallRequest) => void;
   onUpdate: (call: CallRequest) => Promise<void>;
 }) {
   if (!calls.length)
@@ -589,7 +822,25 @@ function CallList({
   return (
     <div className="card-grid">
       {calls.map((call) => (
-        <article className="property-card call-card" key={call.id}>
+        <CallCard key={call.id} call={call} onEdit={onEdit} onUpdate={onUpdate} />
+      ))}
+    </div>
+  );
+}
+
+function CallCard({
+  call,
+  onEdit,
+  onUpdate,
+}: {
+  call: CallRequest;
+  onEdit: (call: CallRequest) => void;
+  onUpdate: (call: CallRequest) => Promise<void>;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <article className="property-card call-card" key={call.id}>
           <div className="card-head">
             <span className="code">{call.request_code}</span>
             <span
@@ -614,11 +865,14 @@ function CallList({
                   {call.contact_number && (
                     <button
                       onClick={() =>
-                        void navigator.clipboard?.writeText(call.contact_number)
+                        void navigator.clipboard?.writeText(call.contact_number).then(() => {
+                          setCopied(true);
+                          window.setTimeout(() => setCopied(false), 1800);
+                        })
                       }
                       aria-label="Copy contact"
                     >
-                      <Clipboard size={14} />
+                      {copied ? <Check size={14} /> : <Clipboard size={14} />}
                     </button>
                   )}
                 </strong>
@@ -630,13 +884,14 @@ function CallList({
             </div>
             {call.notes && <p className="notes">{call.notes}</p>}
             <p className="created">Created {formatDate(call.created_at)}</p>
-            <button className="edit-button" onClick={() => void onUpdate(call)}>
+            <button className="edit-button" onClick={() => onEdit(call)}>
+              Edit call request
+            </button>
+            <button className="secondary-button call-status-button" onClick={() => void onUpdate(call)}>
               {call.status === "Pending" ? "Mark completed" : "Mark pending"}
             </button>
           </div>
-        </article>
-      ))}
-    </div>
+    </article>
   );
 }
 
@@ -651,6 +906,9 @@ function EditPanel({
 }) {
   const [form, setForm] = useState(() => propertyToForm(property));
   const [saving, setSaving] = useState(false);
+  const category =
+    (form.property_category || property.property_category || "") || "";
+
   const set = (key: keyof PropertyFormValues, value: string | boolean | null) =>
     setForm((current) => ({
       ...current,
@@ -661,10 +919,14 @@ function EditPanel({
           ? { area_unit: value as AreaUnit }
           : {}),
     }));
+
   const total =
-    form.total_area && form.price
-      ? Number(form.total_area) * Number(form.price)
-      : 0;
+    form.custom_price_enabled && form.custom_selling_price
+      ? Number(form.custom_selling_price)
+      : form.total_area && form.price
+        ? Number(form.total_area) * Number(form.price)
+        : 0;
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setSaving(true);
@@ -678,6 +940,7 @@ function EditPanel({
       setSaving(false);
     }
   };
+
   return (
     <div className="panel-backdrop">
       <form className="edit-panel" onSubmit={submit}>
@@ -695,19 +958,23 @@ function EditPanel({
             <X size={20} />
           </button>
         </div>
+
         <div className="form-grid">
-          {(
-            [
-              ["name", "Property name"],
-              ["keyword", "Keyword"],
-              ["owner_name", "Owner name *"],
-              ["contact_number", "Contact number *"],
-              ["location", "Location *"],
-              ["google_maps_url", "Google Maps URL"],
-              ["dimension", "Dimension"],
-            ] as const
-          ).map(([key, label]) => (
-            <label key={key}>
+          <label className="full-span">
+            Property ID
+            <input value={form.property_code} readOnly />
+          </label>
+
+          {([
+            ["name", "Property name"],
+            ["keyword", "Keyword"],
+            ["owner_name", "Owner name *"],
+            ["contact_number", "Contact number *"],
+            ["second_contact_number", "Second contact number"],
+            ["location", "Location *"],
+            ["google_maps_url", "Google Maps URL"],
+          ] as const).map(([key, label]) => (
+            <label key={key} className="full-span">
               {label}
               <input
                 value={form[key] as string}
@@ -715,112 +982,350 @@ function EditPanel({
               />
             </label>
           ))}
-          <label>
-            Facing
-            <select
-              value={form.facing}
-              onChange={(event) => set("facing", event.target.value)}
-            >
-              <option value="">Select facing</option>
-              {FACING_OPTIONS.map((facing) => (
-                <option key={facing}>{facing}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Property type *
-            <select
-              value={form.property_type}
-              onChange={(event) =>
-                set(
-                  "property_type",
-                  event.target.value as PropertyFormValues["property_type"],
-                )
-              }
-            >
-              <option value="">Select type</option>
-              {PROPERTY_TYPES.map((type) => (
-                <option key={type}>{type}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Total area *
-            <input
-              type="number"
-              min="0"
-              value={form.total_area}
-              onChange={(event) => set("total_area", event.target.value)}
-            />
-          </label>
-          <label>
-            Area unit *
-            <select
-              value={form.area_unit}
-              onChange={(event) =>
-                set("area_unit", event.target.value as AreaUnit)
-              }
-            >
-              <option value="sqft">sqft</option>
-              <option value="gunta">gunta</option>
-              <option value="acre">acre</option>
-            </select>
-          </label>
-          <label>
-            Price *
-            <input
-              type="number"
-              min="0"
-              value={form.price}
-              onChange={(event) => set("price", event.target.value)}
-            />
-          </label>
-          <label>
-            Price unit *
-            <select
-              value={form.price_unit}
-              onChange={(event) =>
-                set("price_unit", event.target.value as AreaUnit)
-              }
-            >
-              <option value="sqft">sqft</option>
-              <option value="gunta">gunta</option>
-              <option value="acre">acre</option>
-            </select>
-          </label>
+
+          <div className="full-span category-selector">
+            <span className="form-label">Property category</span>
+            <div className="segmented-control" role="radiogroup" aria-label="Property category">
+              <label className={category === "sale" ? "selected" : ""}>
+                <input
+                  type="radio"
+                  name="property_category"
+                  checked={category === "sale"}
+                  onChange={() => set("property_category", "sale")}
+                />
+                <span>Sale Property</span>
+              </label>
+              <label className={category === "rental" || category === "lease" ? "selected" : ""}>
+                <input
+                  type="radio"
+                  name="property_category"
+                  checked={category === "rental" || category === "lease"}
+                  onChange={() => {
+                    set("property_category", "rental");
+                    set("rental_type", "");
+                    set("rental_category", "");
+                  }}
+                />
+                <span>Rental / Lease Property</span>
+              </label>
+            </div>
+          </div>
+
+          {category === "sale" && (
+            <>
+              <label className="full-span">
+                Sale Property Details
+                <select
+                  value={form.property_type}
+                  onChange={(event) =>
+                    set(
+                      "property_type",
+                      event.target.value as PropertyFormValues["property_type"],
+                    )
+                  }
+                >
+                  <option value="">Select property type</option>
+                  {PROPERTY_TYPES.map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="full-span">
+                Facing *
+                <select
+                  value={form.facing}
+                  onChange={(event) => set("facing", event.target.value)}
+                >
+                  <option value="">Select facing</option>
+                  {RENTAL_FACING_OPTIONS.map((facing) => (
+                    <option key={facing} value={facing}>{facing}</option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="full-span pricing-card">
+                <div className="pricing-header">
+                  <span>Sale pricing</span>
+                  <label className="inline-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={form.custom_price_enabled}
+                      onChange={(event) =>
+                        set("custom_price_enabled", event.target.checked)
+                      }
+                    />
+                    Use custom price
+                  </label>
+                </div>
+
+                <div className="pricing-grid">
+                  <label>
+                    Dimension *
+                    <input
+                      value={form.dimension}
+                      onChange={(event) => set("dimension", event.target.value)}
+                    />
+                  </label>
+
+                  <label>
+                    Total Area *
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.total_area}
+                      onChange={(event) => set("total_area", event.target.value)}
+                    />
+                  </label>
+
+                  <label>
+                    Area Unit *
+                    <select
+                      value={form.area_unit}
+                      onChange={(event) =>
+                        set("area_unit", event.target.value as AreaUnit)
+                      }
+                    >
+                      <option value="sqft">sqft</option>
+                      <option value="gunta">gunta</option>
+                      <option value="acre">acre</option>
+                    </select>
+                  </label>
+
+                  {!form.custom_price_enabled && (
+                    <>
+                      <label>
+                        Price *
+                        <input
+                          type="number"
+                          min="0"
+                          value={form.price}
+                          onChange={(event) => set("price", event.target.value)}
+                        />
+                      </label>
+
+                      <label>
+                        Price Unit *
+                        <select
+                          value={form.price_unit}
+                          onChange={(event) =>
+                            set("price_unit", event.target.value as AreaUnit)
+                          }
+                        >
+                          <option value="sqft">sqft</option>
+                          <option value="gunta">gunta</option>
+                          <option value="acre">acre</option>
+                        </select>
+                      </label>
+                    </>
+                  )}
+
+                  {form.custom_price_enabled && (
+                    <label className="full-span">
+                      Custom Selling Price *
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.custom_selling_price}
+                        onChange={(event) =>
+                          set("custom_selling_price", event.target.value)
+                        }
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {(category === "rental" || category === "lease") && (
+            <>
+              <label className="full-span">
+                Rental / Lease Type *
+                <select
+                  value={form.rental_type}
+                  onChange={(event) => set("rental_type", event.target.value)}
+                >
+                  <option value="">Select listing type</option>
+                  {RENTAL_LISTING_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type === "rental" ? "Rental Property" : "Lease Property"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+                <label className="full-span">
+                Property Type *
+                <select
+                  value={form.rental_category}
+                  onChange={(event) =>
+                    set(
+                      "rental_category",
+                      event.target.value as PropertyFormValues["rental_category"],
+                    )
+                  }
+                >
+                  <option value="">Select category</option>
+                  {RENTAL_CATEGORY_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option === "home" ? "Home" : "Commercial Space"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="full-span">
+                Facing *
+                <select
+                  value={form.facing}
+                  onChange={(event) => set("facing", event.target.value)}
+                >
+                  <option value="">Select facing</option>
+                  {RENTAL_FACING_OPTIONS.map((facing) => (
+                    <option key={facing} value={facing}>{facing}</option>
+                  ))}
+                </select>
+              </label>
+
+              {form.rental_category === "home" && (
+                <>
+                  <label>
+                    Floor *
+                    <input
+                      value={form.floor}
+                      onChange={(event) => set("floor", event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    What Kind *
+                    <select
+                      value={form.property_kind}
+                      onChange={(event) => set("property_kind", event.target.value)}
+                    >
+                      <option value="">Select kind</option>
+                      {RENTAL_PROPERTY_KIND_OPTIONS.map((kind) => (
+                        <option key={kind} value={kind}>{kind}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Rent Price *
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.rent_price}
+                      onChange={(event) => set("rent_price", event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Advance Price
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.advance_price}
+                      onChange={(event) => set("advance_price", event.target.value)}
+                    />
+                  </label>
+                </>
+              )}
+
+              {form.rental_category === "commercial_space" && (
+                <>
+                  <label>
+                    Floor *
+                    <input
+                      value={form.floor}
+                      onChange={(event) => set("floor", event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Dimension *
+                    <input
+                      value={form.dimension}
+                      onChange={(event) => set("dimension", event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Rent Price *
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.rent_price}
+                      onChange={(event) => set("rent_price", event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Advance Price
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.advance_price}
+                      onChange={(event) => set("advance_price", event.target.value)}
+                    />
+                  </label>
+                </>
+              )}
+            </>
+          )}
         </div>
-        <div className="calculation">
-          <span>Calculated total price</span>
-          <strong>{formatCurrency(total || null)}</strong>
-        </div>
-        <div className="switches">
-          <label>
-            <input
-              type="checkbox"
-              checked={form.visited}
-              onChange={(event) => set("visited", event.target.checked)}
-            />{" "}
-            Visited
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={form.documents_collected}
-              onChange={(event) =>
-                set("documents_collected", event.target.checked)
-              }
-            />{" "}
-            Documents collected
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={form.sold}
-              onChange={(event) => set("sold", event.target.checked)}
-            />{" "}
-            Sold
-          </label>
-        </div>
+
+        {category === "sale" && (
+          <div className="calculation">
+            <span>{form.custom_price_enabled ? "Custom selling price" : "Calculated total price"}</span>
+            <strong>{formatCurrency(total || null)}</strong>
+          </div>
+        )}
+
+        {category === "sale" && (
+          <div className="switches">
+            <label>
+              <input
+                type="checkbox"
+                checked={form.visited}
+                onChange={(event) => set("visited", event.target.checked)}
+              /> {" "}
+              Visited
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={form.documents_collected}
+                onChange={(event) => set("documents_collected", event.target.checked)}
+              /> {" "}
+              Documents collected
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={form.sold}
+                onChange={(event) => set("sold", event.target.checked)}
+              /> {" "}
+              Sold
+            </label>
+          </div>
+        )}
+
+        {(category === "rental" || category === "lease") && (
+          <div className="switches">
+            <label>
+              <input
+                type="checkbox"
+                checked={form.visited}
+                onChange={(event) => set("visited", event.target.checked)}
+              /> {" "}
+              Visited
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={form.sold}
+                onChange={(event) => set("sold", event.target.checked)}
+              /> {" "}
+              Sold
+            </label>
+          </div>
+        )}
         <div className="panel-actions">
           <button type="button" className="secondary-button" onClick={onClose}>
             Cancel
@@ -835,9 +1340,11 @@ function EditPanel({
 }
 function CallForm({
   onClose,
+  initialCall,
   onSave,
 }: {
   onClose: () => void;
+  initialCall?: CallRequest;
   onSave: (
     input: Omit<
       CallRequest,
@@ -845,7 +1352,19 @@ function CallForm({
     >,
   ) => Promise<void>;
 }) {
-  const [form, setForm] = useState(emptyCallRequest());
+  const [form, setForm] = useState(() =>
+    initialCall
+      ? {
+          contact_number: initialCall.contact_number,
+          owner_name: initialCall.owner_name,
+          location: initialCall.location,
+          google_maps_url: initialCall.google_maps_url,
+          property_type: initialCall.property_type,
+          notes: initialCall.notes,
+          status: initialCall.status,
+        }
+      : emptyCallRequest(),
+  );
   const [saving, setSaving] = useState(false);
   const set = (key: string, value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -856,14 +1375,21 @@ function CallForm({
         onSubmit={async (event) => {
           event.preventDefault();
           setSaving(true);
-          await onSave(form);
-          setSaving(false);
+          try {
+            await onSave(form);
+          } catch (error) {
+            window.alert(
+              error instanceof Error ? error.message : "Unable to create call request.",
+            );
+          } finally {
+            setSaving(false);
+          }
         }}
       >
         <div className="panel-header">
           <div>
-            <p className="eyebrow">NEW CALLBACK</p>
-            <h2>Add call request</h2>
+            <p className="eyebrow">{initialCall ? `EDITING ${initialCall.request_code}` : "NEW CALLBACK"}</p>
+            <h2>{initialCall ? "Edit call request" : "Add call request"}</h2>
           </div>
           <button
             type="button"
@@ -885,16 +1411,18 @@ function CallForm({
             ] as const
           ).map(([key, label]) => (
             <label key={key}>
-              {label}
+              {label}{["owner_name", "contact_number", "location"].includes(key) ? " *" : ""}
               <input
+                required={["owner_name", "contact_number", "location"].includes(key)}
                 value={form[key]}
                 onChange={(event) => set(key, event.target.value)}
               />
             </label>
           ))}
           <label>
-            Property type
+            Property type *
             <select
+              required
               value={form.property_type}
               onChange={(event) => set("property_type", event.target.value)}
             >
@@ -910,7 +1438,7 @@ function CallForm({
             Cancel
           </button>
           <button className="primary-button" disabled={saving}>
-            {saving ? "Creating..." : "Create request"}
+            {saving ? "Saving..." : initialCall ? "Save changes" : "Create request"}
           </button>
         </div>
       </form>
