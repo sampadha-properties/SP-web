@@ -1,4 +1,6 @@
 export const PROPERTY_TYPES = ["Land", "Site", "Farmland", "Building", "Commercial", "Semi Commercial", "Rental Home", "Lease Home"] as const;
+export const FACING_OPTIONS = ["North", "East", "West", "South", "North East", "South East", "North West", "South West"] as const;
+export type Facing = (typeof FACING_OPTIONS)[number];
 export type PropertyType = (typeof PROPERTY_TYPES)[number];
 export type AreaUnit = "sqft" | "gunta" | "acre";
 export type CallStatus = "Pending" | "Completed";
@@ -13,6 +15,7 @@ export interface Property {
   owner_name: string;
   contact_number: string;
   property_type: PropertyType | "";
+  facing: string;
   dimension: string;
   total_area: number | null;
   area_unit: AreaUnit;
@@ -51,6 +54,7 @@ export interface PropertyFormValues {
   location: string;
   google_maps_url: string;
   property_type: PropertyType | "";
+  facing: string;
   dimension: string;
   total_area: string;
   area_unit: AreaUnit;
@@ -71,6 +75,7 @@ export const emptyPropertyForm = (propertyCode = ""): PropertyFormValues => ({
   location: "",
   google_maps_url: "",
   property_type: "",
+  facing: "",
   dimension: "",
   total_area: "",
   area_unit: "sqft",
@@ -91,6 +96,7 @@ export const propertyToForm = (property: Property): PropertyFormValues => ({
   location: property.location,
   google_maps_url: property.google_maps_url,
   property_type: property.property_type,
+  facing: property.facing ?? "",
   dimension: property.dimension,
   total_area: property.total_area?.toString() ?? "",
   area_unit: property.area_unit,
@@ -105,7 +111,7 @@ export const propertyToForm = (property: Property): PropertyFormValues => ({
 export const formToPropertyInput = (form: PropertyFormValues) => ({
   name: form.name.trim(), keyword: form.keyword.trim(), owner_name: form.owner_name.trim(), contact_number: form.contact_number.trim(),
   location: form.location.trim(), google_maps_url: form.google_maps_url.trim(), property_type: form.property_type,
-  dimension: form.dimension.trim(), total_area: form.total_area ? Number(form.total_area) : null, area_unit: form.area_unit,
+  facing: form.facing.trim(), dimension: form.dimension.trim(), total_area: form.total_area ? Number(form.total_area) : null, area_unit: form.area_unit,
   price: form.price ? Number(form.price) : null, price_unit: form.price_unit, visited: form.visited,
   documents_collected: form.documents_collected, sold: form.sold,
 });

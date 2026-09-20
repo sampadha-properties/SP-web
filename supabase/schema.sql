@@ -6,7 +6,7 @@ create sequence if not exists request_code_seq start 1;
 create table if not exists public.properties (
   id uuid primary key default gen_random_uuid(), property_code text not null unique,
   name text not null default '', keyword text not null default '', location text not null default '', google_maps_url text not null default '',
-  owner_name text not null default '', contact_number text not null default '', property_type text not null default '', dimension text not null default '',
+  owner_name text not null default '', contact_number text not null default '', property_type text not null default '', facing text not null default '', dimension text not null default '',
   total_area numeric(14,2), area_unit text not null default 'sqft' check (area_unit in ('sqft','gunta','acre')),
   price numeric(16,2), price_unit text not null default 'sqft' check (price_unit in ('sqft','gunta','acre')),
   total_price numeric(20,2) generated always as (case when total_area is not null and price is not null then total_area * price end) stored,
@@ -14,6 +14,7 @@ create table if not exists public.properties (
   created_at timestamptz not null default now(), updated_at timestamptz not null default now(), image_path text, image_url text,
   check (total_area is null or total_area >= 0), check (price is null or price >= 0), check (area_unit = price_unit)
 );
+alter table public.properties add column if not exists facing text not null default '';
 create table if not exists public.call_requests (
   id uuid primary key default gen_random_uuid(), request_code text not null unique, contact_number text not null default '', owner_name text not null default '', location text not null default '', google_maps_url text not null default '', property_type text not null default '', notes text not null default '', status text not null default 'Pending' check (status in ('Pending','Completed')), created_at timestamptz not null default now(), updated_at timestamptz not null default now()
 );
