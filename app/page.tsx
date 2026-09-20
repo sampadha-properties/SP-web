@@ -301,7 +301,7 @@ export default function Home() {
         <div className="brand">
           <span className="brand-mark">
             <Image
-              src="/logo.png"
+              src="/logo.jpeg"
               alt="Sampadha logo"
               className="brand-logo"
               width={25}
