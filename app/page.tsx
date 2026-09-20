@@ -38,6 +38,7 @@ import {
   RENTAL_LISTING_TYPES,
   PropertyCategory,
   PROPERTY_CATEGORIES,
+  FACING_OPTIONS,
 } from "@/types";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
 
@@ -1038,7 +1039,7 @@ function EditPanel({
                   onChange={(event) => set("facing", event.target.value)}
                 >
                   <option value="">Select facing</option>
-                  {RENTAL_FACING_OPTIONS.map((facing) => (
+                  {FACING_OPTIONS.map((facing) => (
                     <option key={facing} value={facing}>{facing}</option>
                   ))}
                 </select>
