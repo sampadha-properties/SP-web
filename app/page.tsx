@@ -935,7 +935,9 @@ function EditPanel({
       await onSave(form);
     } catch (error) {
       window.alert(
-        error instanceof Error ? error.message : "Unable to save property.",
+        error instanceof Error
+          ? `Unable to save property: ${error.message}`
+          : "Unable to save property.",
       );
     } finally {
       setSaving(false);

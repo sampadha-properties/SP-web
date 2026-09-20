@@ -136,9 +136,12 @@ export async function updateProperty(property: Property, form: PropertyFormValue
   } as Property;
 
   if (supabase) {
+    const databaseInput = Object.fromEntries(
+      Object.entries(input).filter(([key]) => key !== "total_price"),
+    );
     const { data, error } = await supabase
       .from("properties")
-      .update(input)
+      .update(databaseInput)
       .eq("id", property.id)
       .select()
       .single();
