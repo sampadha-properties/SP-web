@@ -9,6 +9,11 @@ export function phoneHref(value: string): string {
     : cleaned.replace(/\D/g, "");
 }
 
+export function directCallHref(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  return digits.startsWith("91") && digits.length === 12 ? digits.slice(2) : digits;
+}
+
 export function whatsappNumber(value: string): string {
   let digits = value.replace(/\D/g, "");
 

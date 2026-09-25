@@ -27,9 +27,10 @@ Open `http://localhost:3000`. Without Supabase values, the app uses local browse
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In Project Settings > API, copy the Project URL and anon public key into `.env.local` as `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 3. Open SQL Editor and run `supabase/schema.sql`.
-4. Run `supabase/seed.sql` if you want the sample SP040 or to set the counter after importing existing records.
-5. Confirm Storage contains the public `property-images` bucket. The schema creates it and adds policies.
-6. Restart `npm run dev` after changing environment variables.
+4. Run `supabase/production_enhancement_migration.sql` to create the deals, client requests, rental units, and request-matching RPCs.
+5. Run `supabase/seed.sql` if you want the sample SP040 or to set the counter after importing existing records.
+6. Confirm Storage contains the public `property-images` bucket. The schema creates it and adds policies.
+7. Restart `npm run dev` after changing environment variables.
 
 The supplied policies allow internal anonymous access. For a public production deployment, add Supabase Auth and change the `anon` policies to authenticated-only before launch. Never put a service-role key in this app.
 

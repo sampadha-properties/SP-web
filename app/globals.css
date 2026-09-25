@@ -408,6 +408,25 @@ h1 {
   font-size: 16px;
   color: var(--text);
 }
+.small-row { border-top: 0; padding-top: 0; }
+.notes { color: var(--muted); font: 13px/1.5 Arial, sans-serif; }
+.truncated-notes { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.section-label { display: block; margin-bottom: 8px; color: var(--muted); font: 700 10px Arial, sans-serif; letter-spacing: .7px; text-transform: uppercase; }
+.home-unit-list { margin: 16px 0; padding: 12px; border: 1px solid rgba(114, 174, 248, 0.24); border-radius: 10px; background: rgba(114, 174, 248, 0.06); }
+.home-unit { display: flex; flex-direction: column; gap: 4px; padding: 9px 0; border-top: 1px solid rgba(255,255,255,0.07); font: 12px/1.4 Arial, sans-serif; }
+.home-unit:first-of-type { border-top: 0; }
+.home-unit span { color: var(--muted); }
+.deal-button { width: 100%; margin-top: 8px; }
+.request-actions { display: flex; gap: 8px; margin-top: 12px; }
+.request-actions .primary-button { flex: 1; }
+.copy-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 45px; padding: 0 12px; border: 1px solid var(--line); border-radius: 11px; background: rgba(18, 25, 33, 0.9); color: var(--text); font: 700 11px Arial, sans-serif; }
+.copy-button:hover { border-color: var(--primary); color: var(--primary); }
+.match-mode { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); font: 700 11px Arial, sans-serif; }
+.match-mode button { min-width: 66px; min-height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); font: 700 11px Arial, sans-serif; }
+.match-mode button.selected { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+.range-buttons { display: flex; gap: 6px; margin-top: 7px; }
+.range-buttons button { min-width: 52px; min-height: 28px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--muted); font: 700 10px Arial, sans-serif; cursor: pointer; }
+.range-buttons button.selected { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
 
 .status-row {
   display: flex;
@@ -561,6 +580,7 @@ h1 {
   outline-color: var(--primary);
   font: 14px Arial, sans-serif;
 }
+.form-grid textarea { width: 100%; min-height: 90px; padding: 11px; resize: vertical; border: 1px solid var(--line); border-radius: 10px; background: rgba(17, 24, 33, 0.96); color: var(--text); outline-color: var(--primary); font: 14px/1.4 Arial, sans-serif; }
 
 .category-selector {
   display: flex;
